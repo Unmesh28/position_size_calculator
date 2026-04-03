@@ -2,14 +2,69 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 import { Input } from "./components/ui/input";
 import { Label } from "./components/ui/label";
-import { AlertCircle, TrendingUp, DollarSign } from 'lucide-react';
+import { AlertCircle, TrendingUp, DollarSign, Shield, Target } from 'lucide-react';
 
-const ForexCalculator = ({ initialCapital = 5000 }) => {
-  const [accountSize, setAccountSize] = useState(initialCapital);
+const ACCOUNT_OPTIONS = [5000, 10000, 25000, 50000, 100000, 200000];
+const RISK_OPTIONS = [0.5, 1, 1.5, 2];
+
+const ChipSelect = ({ options, value, onChange, onCustom, customValue, onCustomChange, formatLabel, customLabel, customPlaceholder }) => {
+  const isCustom = !options.includes(value);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        {options.map((opt) => (
+          <button
+            key={opt}
+            onClick={() => { onChange(opt); onCustom && onCustom(false); }}
+            className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 border-2 ${
+              value === opt && !isCustom
+                ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-200 scale-105'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600 hover:shadow-md'
+            }`}
+          >
+            {formatLabel(opt)}
+          </button>
+        ))}
+        <button
+          onClick={() => onCustom && onCustom(true)}
+          className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 border-2 border-dashed ${
+            isCustom
+              ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-200 scale-105'
+              : 'bg-white text-gray-400 border-gray-300 hover:border-blue-300 hover:text-blue-600'
+          }`}
+        >
+          {customLabel}
+        </button>
+      </div>
+      {isCustom && (
+        <div className="mt-2 animate-fadeIn">
+          <Input
+            type="number"
+            value={customValue}
+            onChange={onCustomChange}
+            placeholder={customPlaceholder}
+            className="border-2 border-blue-300 focus:border-blue-500 bg-blue-50"
+            step="any"
+            autoFocus
+          />
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ForexCalculator = () => {
+  const [accountSize, setAccountSize] = useState(5000);
+  const [customAccountMode, setCustomAccountMode] = useState(false);
+  const [customAccountValue, setCustomAccountValue] = useState('');
+  const [riskPercent, setRiskPercent] = useState(0.5);
+  const [customRiskMode, setCustomRiskMode] = useState(false);
+  const [customRiskValue, setCustomRiskValue] = useState('');
   const [entryPrice, setEntryPrice] = useState('');
   const [stopLoss, setStopLoss] = useState('');
   const [selectedPair, setSelectedPair] = useState('XAUUSD');
-  
+
   const forexPairs = {
     'XAUUSD': { label: 'XAUUSD (Gold)', pipValue: 0.1, typical: 1900 },
     'XAGUSD': { label: 'XAGUSD (Silver)', pipValue: 0.01, typical: 24 },
@@ -21,15 +76,39 @@ const ForexCalculator = ({ initialCapital = 5000 }) => {
     'NZDUSD': { label: 'NZD/USD', pipValue: 0.0001, typical: 0.61 },
   };
 
+  const handleAccountChange = (val) => {
+    setAccountSize(val);
+    setCustomAccountMode(false);
+  };
+
+  const handleAccountCustomToggle = (isCustom) => {
+    setCustomAccountMode(isCustom);
+    if (isCustom && customAccountValue) {
+      setAccountSize(Number(customAccountValue));
+    }
+  };
+
+  const handleRiskChange = (val) => {
+    setRiskPercent(val);
+    setCustomRiskMode(false);
+  };
+
+  const handleRiskCustomToggle = (isCustom) => {
+    setCustomRiskMode(isCustom);
+    if (isCustom && customRiskValue) {
+      setRiskPercent(Number(customRiskValue));
+    }
+  };
+
   const calculatePositionSize = () => {
     if (!entryPrice || !stopLoss) return null;
 
-    const riskAmount = accountSize * 0.005;
+    const riskAmount = accountSize * (riskPercent / 100);
     const entry = parseFloat(entryPrice);
     const stop = parseFloat(stopLoss);
     const direction = entry > stop ? 1 : -1;
     const riskDistance = Math.abs(entry - stop);
-    
+
     let pipDiff;
     if (selectedPair === 'USDJPY') {
       pipDiff = Math.abs(entry - stop) / 0.01;
@@ -42,7 +121,7 @@ const ForexCalculator = ({ initialCapital = 5000 }) => {
     }
 
     let positionSize, lotValue;
-    
+
     if (selectedPair === 'XAUUSD') {
       const units = (riskAmount / (pipDiff * 0.1));
       positionSize = (units / 100).toFixed(2);
@@ -62,12 +141,12 @@ const ForexCalculator = ({ initialCapital = 5000 }) => {
       lotValue = (lots * 100000).toFixed(0);
     }
 
-    const leveragedValue = selectedPair === 'XAUUSD' 
+    const leveragedValue = selectedPair === 'XAUUSD'
       ? (parseFloat(lotValue) * entry).toFixed(2)
       : selectedPair === 'XAGUSD'
       ? (parseFloat(positionSize) * 5000 * entry).toFixed(2)
       : (parseFloat(positionSize) * 100000 * entry).toFixed(2);
-    
+
     const actualMargin = (parseFloat(leveragedValue) / 100).toFixed(2);
     const accountUsagePercentage = ((parseFloat(actualMargin) / accountSize) * 100).toFixed(2);
 
@@ -93,34 +172,89 @@ const ForexCalculator = ({ initialCapital = 5000 }) => {
   const result = calculatePositionSize();
 
   return (
-    <div className="w-full max-w-4xl mx-auto p-4">
-      <Card className="bg-gradient-to-br from-white to-gray-50 shadow-2xl border-0">
-        <CardHeader className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-t-lg">
-          <div className="flex items-center justify-center gap-3 mb-2">
-            <TrendingUp className="w-8 h-8" />
-            <CardTitle className="text-3xl font-bold text-white">
-              Forex Position Calculator
-            </CardTitle>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 py-6 px-4">
+      <div className="w-full max-w-4xl mx-auto space-y-6">
+
+        {/* Header */}
+        <div className="text-center space-y-2">
+          <div className="flex items-center justify-center gap-3">
+            <div className="p-3 bg-blue-500/20 rounded-2xl backdrop-blur">
+              <TrendingUp className="w-8 h-8 text-blue-400" />
+            </div>
+            <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
+              Position Size Calculator
+            </h1>
           </div>
-          <p className="text-center text-blue-100">
-            ${initialCapital.toLocaleString()} Account • 0.5% Risk • 100x Leverage
+          <p className="text-blue-300/70 text-sm">
+            Calculate your optimal position size with precision risk management
           </p>
-        </CardHeader>
-        <CardContent className="p-6">
-          <div className="grid gap-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        </div>
+
+        {/* Account Size Section */}
+        <Card className="bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <DollarSign className="w-5 h-5 text-emerald-400" />
+              <Label className="text-white font-semibold text-base">Account Size</Label>
+            </div>
+            <ChipSelect
+              options={ACCOUNT_OPTIONS}
+              value={customAccountMode ? -1 : accountSize}
+              onChange={handleAccountChange}
+              onCustom={handleAccountCustomToggle}
+              customValue={customAccountValue}
+              onCustomChange={(e) => {
+                setCustomAccountValue(e.target.value);
+                if (e.target.value) setAccountSize(Number(e.target.value));
+              }}
+              formatLabel={(v) => `$${v.toLocaleString()}`}
+              customLabel="Custom"
+              customPlaceholder="Enter custom account size..."
+            />
+            <p className="text-blue-300/50 text-xs mt-2">
+              Selected: <span className="text-blue-300 font-semibold">${accountSize.toLocaleString()}</span>
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Risk % Section */}
+        <Card className="bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Shield className="w-5 h-5 text-amber-400" />
+              <Label className="text-white font-semibold text-base">Risk Per Trade</Label>
+            </div>
+            <ChipSelect
+              options={RISK_OPTIONS}
+              value={customRiskMode ? -1 : riskPercent}
+              onChange={handleRiskChange}
+              onCustom={handleRiskCustomToggle}
+              customValue={customRiskValue}
+              onCustomChange={(e) => {
+                setCustomRiskValue(e.target.value);
+                if (e.target.value) setRiskPercent(Number(e.target.value));
+              }}
+              formatLabel={(v) => `${v}%`}
+              customLabel="Custom %"
+              customPlaceholder="Enter custom risk percentage..."
+            />
+            <p className="text-blue-300/50 text-xs mt-2">
+              Risk: <span className="text-amber-400 font-semibold">{riskPercent}%</span>
+              {' '}= <span className="text-amber-400 font-semibold">${(accountSize * riskPercent / 100).toFixed(2)}</span> per trade
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Trade Setup */}
+        <Card className="bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Target className="w-5 h-5 text-purple-400" />
+              <Label className="text-white font-semibold text-base">Trade Setup</Label>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <Label htmlFor="account-size" className="text-gray-700 font-semibold">Account Size ($)</Label>
-                <Input
-                  id="account-size"
-                  type="number"
-                  value={accountSize}
-                  onChange={(e) => setAccountSize(Number(e.target.value))}
-                  className="mt-1 border-2 border-gray-300 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <Label htmlFor="pair" className="text-gray-700 font-semibold">Currency Pair</Label>
+                <Label htmlFor="pair" className="text-blue-200/70 text-sm mb-1 block">Currency Pair</Label>
                 <select
                   id="pair"
                   value={selectedPair}
@@ -128,143 +262,123 @@ const ForexCalculator = ({ initialCapital = 5000 }) => {
                     setSelectedPair(e.target.value);
                     setEntryPrice(forexPairs[e.target.value].typical.toString());
                   }}
-                  className="w-full mt-1 p-2.5 border-2 border-gray-300 rounded-md focus:border-blue-500 focus:outline-none"
+                  className="w-full p-2.5 bg-white/10 border border-white/20 rounded-lg text-white focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400 transition-colors"
                 >
                   {Object.entries(forexPairs).map(([pair, info]) => (
-                    <option key={pair} value={pair}>
+                    <option key={pair} value={pair} className="bg-slate-800 text-white">
                       {info.label}
                     </option>
                   ))}
                 </select>
               </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="entry" className="text-gray-700 font-semibold">Entry Price</Label>
+                <Label htmlFor="entry" className="text-blue-200/70 text-sm mb-1 block">Entry Price</Label>
                 <Input
                   id="entry"
                   type="number"
                   value={entryPrice}
                   onChange={(e) => setEntryPrice(e.target.value)}
                   placeholder={forexPairs[selectedPair].typical.toString()}
-                  className="mt-1 border-2 border-gray-300 focus:border-blue-500"
+                  className="bg-white/10 border-white/20 text-white placeholder:text-white/30 focus:border-blue-400"
                   step="any"
                 />
               </div>
               <div>
-                <Label htmlFor="stop" className="text-gray-700 font-semibold">Stop Loss</Label>
+                <Label htmlFor="stop" className="text-blue-200/70 text-sm mb-1 block">Stop Loss</Label>
                 <Input
                   id="stop"
                   type="number"
                   value={stopLoss}
                   onChange={(e) => setStopLoss(e.target.value)}
-                  className="mt-1 border-2 border-gray-300 focus:border-blue-500"
+                  placeholder="Enter stop loss"
+                  className="bg-white/10 border-white/20 text-white placeholder:text-white/30 focus:border-blue-400"
                   step="any"
                 />
               </div>
             </div>
+          </CardContent>
+        </Card>
 
-            {result && (
-              <div className="mt-6">
-                <div className="bg-gradient-to-br from-blue-50 to-purple-50 p-6 rounded-xl border-2 border-blue-200">
-                  <h3 className="text-2xl font-bold mb-6 text-gray-800 flex items-center gap-2">
-                    <DollarSign className="w-6 h-6 text-blue-600" />
-                    Position Details
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-white p-4 rounded-lg shadow-md">
-                      <p className="text-sm text-gray-600 mb-1">Volume (Lots)</p>
-                      <p className="text-3xl font-bold text-blue-600">{result.positionSize}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {selectedPair === 'XAUUSD' ? '(1.000 = 0.01 lots)' : 
-                         selectedPair === 'XAGUSD' ? '(1 lot = 5,000 oz)' :
-                         '(1 lot = 100,000 units)'}
-                      </p>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg shadow-md">
-                      <p className="text-sm text-gray-600 mb-1">Risk Amount</p>
-                      <p className="text-3xl font-bold text-red-600">${result.riskAmount}</p>
-                      <p className="text-xs text-gray-500 mt-1">(0.5% of account)</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg shadow-md">
-                      <p className="text-sm text-gray-600 mb-1">Position Value</p>
-                      <p className="text-3xl font-bold text-purple-600">${result.leveragedValue}</p>
-                      <p className="text-xs text-gray-500 mt-1">(Total position)</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg shadow-md">
-                      <p className="text-sm text-gray-600 mb-1">Required Margin</p>
-                      <p className="text-3xl font-bold text-orange-600">${result.actualMargin}</p>
-                      <p className="text-xs text-gray-500 mt-1">({result.accountUsagePercentage}% of account)</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 bg-white p-6 rounded-lg shadow-md">
-                    <h4 className="text-lg font-bold mb-4 text-gray-800 flex items-center gap-2">
-                      <TrendingUp className="w-5 h-5 text-green-600" />
-                      Profit Targets ({result.isLong ? 'Long ↑' : 'Short ↓'})
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="text-center p-4 bg-green-50 rounded-lg border-2 border-green-200">
-                        <p className="text-sm text-gray-600 mb-1">1:3 R:R</p>
-                        <p className="text-2xl font-bold text-green-600">{result.target3R}</p>
-                        <p className="text-xs text-gray-500 mt-1">3x Risk</p>
-                      </div>
-                      <div className="text-center p-4 bg-green-50 rounded-lg border-2 border-green-200">
-                        <p className="text-sm text-gray-600 mb-1">1:4 R:R</p>
-                        <p className="text-2xl font-bold text-green-600">{result.target4R}</p>
-                        <p className="text-xs text-gray-500 mt-1">4x Risk</p>
-                      </div>
-                      <div className="text-center p-4 bg-green-50 rounded-lg border-2 border-green-200">
-                        <p className="text-sm text-gray-600 mb-1">1:5 R:R</p>
-                        <p className="text-2xl font-bold text-green-600">{result.target5R}</p>
-                        <p className="text-xs text-gray-500 mt-1">5x Risk</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+        {/* Results */}
+        {result && (
+          <div className="space-y-4 animate-fadeIn">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/10 backdrop-blur border border-blue-400/20 rounded-2xl p-4">
+                <p className="text-blue-300/70 text-xs font-medium mb-1">Volume (Lots)</p>
+                <p className="text-2xl md:text-3xl font-bold text-white">{result.positionSize}</p>
+                <p className="text-blue-300/40 text-xs mt-1">
+                  {selectedPair === 'XAUUSD' ? '1.000 = 0.01 lots' :
+                   selectedPair === 'XAGUSD' ? '1 lot = 5,000 oz' :
+                   '1 lot = 100K units'}
+                </p>
               </div>
-            )}
-
-            <div className="flex items-start gap-2 mt-2 p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded">
-              <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-yellow-800">
-                Always verify calculations and manage your risk carefully. Trading involves substantial risk of loss.
-              </p>
+              <div className="bg-gradient-to-br from-red-500/20 to-red-600/10 backdrop-blur border border-red-400/20 rounded-2xl p-4">
+                <p className="text-red-300/70 text-xs font-medium mb-1">Risk Amount</p>
+                <p className="text-2xl md:text-3xl font-bold text-white">${result.riskAmount}</p>
+                <p className="text-red-300/40 text-xs mt-1">{riskPercent}% of account</p>
+              </div>
+              <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/10 backdrop-blur border border-purple-400/20 rounded-2xl p-4">
+                <p className="text-purple-300/70 text-xs font-medium mb-1">Position Value</p>
+                <p className="text-2xl md:text-3xl font-bold text-white">${Number(result.leveragedValue).toLocaleString()}</p>
+                <p className="text-purple-300/40 text-xs mt-1">Total exposure</p>
+              </div>
+              <div className="bg-gradient-to-br from-amber-500/20 to-amber-600/10 backdrop-blur border border-amber-400/20 rounded-2xl p-4">
+                <p className="text-amber-300/70 text-xs font-medium mb-1">Margin Required</p>
+                <p className="text-2xl md:text-3xl font-bold text-white">${Number(result.actualMargin).toLocaleString()}</p>
+                <p className="text-amber-300/40 text-xs mt-1">{result.accountUsagePercentage}% of account</p>
+              </div>
             </div>
+
+            {/* Profit Targets */}
+            <Card className="bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <TrendingUp className="w-5 h-5 text-emerald-400" />
+                  <span className="text-white font-semibold">
+                    Profit Targets
+                  </span>
+                  <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-bold ${
+                    result.isLong
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-400/30'
+                      : 'bg-red-500/20 text-red-400 border border-red-400/30'
+                  }`}>
+                    {result.isLong ? 'LONG' : 'SHORT'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: '1:3 R:R', value: result.target3R, multiplier: '3x' },
+                    { label: '1:4 R:R', value: result.target4R, multiplier: '4x' },
+                    { label: '1:5 R:R', value: result.target5R, multiplier: '5x' },
+                  ].map((t) => (
+                    <div key={t.label} className="text-center p-3 bg-emerald-500/10 border border-emerald-400/20 rounded-xl">
+                      <p className="text-emerald-300/60 text-xs mb-1">{t.label}</p>
+                      <p className="text-lg md:text-xl font-bold text-emerald-400">{t.value}</p>
+                      <p className="text-emerald-300/40 text-xs mt-1">{t.multiplier} Risk</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
+        )}
 
-const App = () => {
-  const [selectedAccount, setSelectedAccount] = useState('5k');
+        {/* Disclaimer */}
+        <div className="flex items-start gap-3 p-4 bg-amber-500/10 border border-amber-400/20 rounded-xl">
+          <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-amber-200/70">
+            Always verify calculations and manage your risk carefully. Trading involves substantial risk of loss.
+          </p>
+        </div>
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 py-8">
-      <div className="max-w-4xl mx-auto mb-6 px-4">
-        <select
-          value={selectedAccount}
-          onChange={(e) => setSelectedAccount(e.target.value)}
-          className="w-full p-3 border-2 border-blue-300 rounded-lg bg-white shadow-lg font-semibold text-gray-700 focus:outline-none focus:border-blue-500"
-        >
-          <option value="5k">💰 $5,000 Account Calculator</option>
-          <option value="10k">💎 $10,000 Account Calculator</option>
-        </select>
-      </div>
-
-      {selectedAccount === '5k' ? 
-        <ForexCalculator initialCapital={5000} /> : 
-        <ForexCalculator initialCapital={10000} />
-      }
-
-      <div className="text-center mt-8 text-gray-600">
-        <p className="text-sm">Built for traders • 0.5% risk management • 100x leverage</p>
+        <p className="text-center text-blue-300/30 text-xs pb-4">
+          Position Size Calculator &bull; 100x Leverage
+        </p>
       </div>
     </div>
   );
 };
+
+const App = () => <ForexCalculator />;
 
 export default App;
