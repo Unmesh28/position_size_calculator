@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 import { Input } from "./components/ui/input";
 import { Label } from "./components/ui/label";
-import { AlertCircle, TrendingUp, DollarSign, Shield, Target } from 'lucide-react';
+import { AlertCircle, TrendingUp, DollarSign, Shield, Target, Zap } from 'lucide-react';
 
 const ACCOUNT_OPTIONS = [5000, 10000, 25000, 50000, 100000, 200000];
 const RISK_OPTIONS = [0.5, 1, 1.5, 2];
+const LEVERAGE_OPTIONS = [50, 100, 200, 500];
 
 const ChipSelect = ({ options, value, onChange, onCustom, customValue, onCustomChange, formatLabel, customLabel, customPlaceholder }) => {
   const isCustom = !options.includes(value);
@@ -61,6 +62,9 @@ const ForexCalculator = () => {
   const [riskPercent, setRiskPercent] = useState(0.5);
   const [customRiskMode, setCustomRiskMode] = useState(false);
   const [customRiskValue, setCustomRiskValue] = useState('');
+  const [leverage, setLeverage] = useState(100);
+  const [customLeverageMode, setCustomLeverageMode] = useState(false);
+  const [customLeverageValue, setCustomLeverageValue] = useState('');
   const [entryPrice, setEntryPrice] = useState('');
   const [stopLoss, setStopLoss] = useState('');
   const [selectedPair, setSelectedPair] = useState('XAUUSD');
@@ -97,6 +101,18 @@ const ForexCalculator = () => {
     setCustomRiskMode(isCustom);
     if (isCustom && customRiskValue) {
       setRiskPercent(Number(customRiskValue));
+    }
+  };
+
+  const handleLeverageChange = (val) => {
+    setLeverage(val);
+    setCustomLeverageMode(false);
+  };
+
+  const handleLeverageCustomToggle = (isCustom) => {
+    setCustomLeverageMode(isCustom);
+    if (isCustom && customLeverageValue) {
+      setLeverage(Number(customLeverageValue));
     }
   };
 
@@ -147,7 +163,7 @@ const ForexCalculator = () => {
       ? (parseFloat(positionSize) * 5000 * entry).toFixed(2)
       : (parseFloat(positionSize) * 100000 * entry).toFixed(2);
 
-    const actualMargin = (parseFloat(leveragedValue) / 100).toFixed(2);
+    const actualMargin = (parseFloat(leveragedValue) / leverage).toFixed(2);
     const accountUsagePercentage = ((parseFloat(actualMargin) / accountSize) * 100).toFixed(2);
 
     const formatTarget = (multiplier) => {
@@ -241,6 +257,33 @@ const ForexCalculator = () => {
             <p className="text-blue-300/50 text-xs mt-2">
               Risk: <span className="text-amber-400 font-semibold">{riskPercent}%</span>
               {' '}= <span className="text-amber-400 font-semibold">${(accountSize * riskPercent / 100).toFixed(2)}</span> per trade
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Leverage Section */}
+        <Card className="bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Zap className="w-5 h-5 text-cyan-400" />
+              <Label className="text-white font-semibold text-base">Leverage</Label>
+            </div>
+            <ChipSelect
+              options={LEVERAGE_OPTIONS}
+              value={customLeverageMode ? -1 : leverage}
+              onChange={handleLeverageChange}
+              onCustom={handleLeverageCustomToggle}
+              customValue={customLeverageValue}
+              onCustomChange={(e) => {
+                setCustomLeverageValue(e.target.value);
+                if (e.target.value) setLeverage(Number(e.target.value));
+              }}
+              formatLabel={(v) => `1:${v}`}
+              customLabel="Custom"
+              customPlaceholder="Enter custom leverage (e.g. 300)..."
+            />
+            <p className="text-blue-300/50 text-xs mt-2">
+              Selected: <span className="text-cyan-400 font-semibold">1:{leverage}</span>
             </p>
           </CardContent>
         </Card>
@@ -372,7 +415,7 @@ const ForexCalculator = () => {
         </div>
 
         <p className="text-center text-blue-300/30 text-xs pb-4">
-          Position Size Calculator &bull; 100x Leverage
+          Position Size Calculator &bull; {leverage}x Leverage
         </p>
       </div>
     </div>
